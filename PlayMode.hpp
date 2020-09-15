@@ -21,15 +21,28 @@ struct PlayMode : Mode {
 	struct Button {
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
-	} left, right, down, up;
+	} left, right, down, up, space;
 
 	//some weird background animation:
 	float background_fade = 0.0f;
 
-	//player position:
+	//player info:
 	glm::vec2 player_at = glm::vec2(0.0f);
+	uint8_t player_sprite_index = 32;
+	uint8_t player_color_index = 7;
+	float shot_delay = 1.0f; //time to charge a shot
+
+	//package info
+	glm::vec2 box_at = glm::vec2(0.0f);
+	bool holding_box = false;
+
+	bool near_box();
+	void grab_box();
+	void release_box();
 
 	//----- drawing handled by PPU466 -----
 
 	PPU466 ppu;
 };
+
+

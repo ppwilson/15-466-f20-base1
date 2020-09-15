@@ -240,7 +240,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 
 	//some other misc sprites:
 	for (uint32_t i = 3; i < 63; ++i) {
-		float amt = (i + 2.0f * background_fade) / 62.0f;
 		ppu.sprites[i].x = 250; 
 		ppu.sprites[i].y = 250; 
 		ppu.sprites[i].index = 32;

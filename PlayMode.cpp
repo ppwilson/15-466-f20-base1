@@ -8,129 +8,105 @@
 
 #include <random>
 
-#define GRAB_DISTANCE 10.0f;
+#include "load_save_png.hpp"
 
-PlayMode::PlayMode() {
-	//TODO:
-	// you *must* use an asset pipeline of some sort to generate tiles.
-	// don't hardcode them like this!
-	// or, at least, if you do hardcode them like this,
-	//  make yourself a script that spits out the code that you paste in here
-	//   and check that script into your repository.
+#include "PPU466.hpp"
 
-	//Also, *don't* use these tiles in your game:
+#define GRAB_DISTANCE 8.0f;
 
-	{ //use tiles 0-16 as some weird dot pattern thing:
-		std::array< uint8_t, 8*8 > distance;
-		for (uint32_t y = 0; y < 8; ++y) {
-			for (uint32_t x = 0; x < 8; ++x) {
-				float d = glm::length(glm::vec2((x + 0.5f) - 4.0f, (y + 0.5f) - 4.0f));
-				d /= glm::length(glm::vec2(4.0f, 4.0f));
-				distance[x+8*y] = std::max(0,std::min(255,int32_t( 255.0f * d )));
+
+PPU466::Tile gen_tile_from_png(glm::uvec2 size, std::vector< glm::u8vec4 > data) {
+	glm::uvec2 step_size = glm::uvec2(0, 0);
+	step_size.x = size.x / 8;
+	step_size.y = size.y / 8;
+	
+	int color_select0 = 1;
+	int color_select1 = 1;
+	PPU466::Tile gen_tile;
+	for (int j = 0; j < 8; j++) {
+		for (int i = 0; i < 8; i++) {
+			
+			if (data[i * step_size.x + j * step_size.y * size.x].w == 0) {
+				color_select0 = 0;
+				color_select1 = 0;
 			}
-		}
-		for (uint32_t index = 0; index < 16; ++index) {
-			PPU466::Tile tile;
-			uint8_t t = (255 * index) / 16;
-			for (uint32_t y = 0; y < 8; ++y) {
-				uint8_t bit0 = 0;
-				uint8_t bit1 = 0;
-				for (uint32_t x = 0; x < 8; ++x) {
-					uint8_t d = distance[x+8*y];
-					if (d > t) {
-						bit0 |= (1 << x);
-					} else {
-						bit1 |= (1 << x);
-					}
-				}
-				tile.bit0[y] = bit0;
-				tile.bit1[y] = bit1;
+			else if (data[i * step_size.x + j * step_size.y * size.x].x > data[i * step_size.x + j * step_size.y * size.x].y &&
+				     data[i * step_size.x + j * step_size.y * size.x].x > data[i * step_size.x + j * step_size.y * size.x].z) {
+				color_select0 = 1;
+				color_select1 = 0;
 			}
-			ppu.tile_table[index] = tile;
+			else if (data[i * step_size.x + j * step_size.y * size.x].y > data[i * step_size.x + j * step_size.y * size.x].x &&
+				     data[i * step_size.x + j * step_size.y * size.x].y > data[i * step_size.x + j * step_size.y * size.x].z) {
+				color_select0 = 0;
+				color_select1 = 1;
+			}
+			else {
+				color_select0 = 1;
+				color_select1 = 1;
+			}
+			gen_tile.bit0[j] = gen_tile.bit0[j] | color_select0 << i;
+			gen_tile.bit0[j] = gen_tile.bit0[j] | color_select1 << i;
 		}
 	}
+	return gen_tile;
+}
 
-	//use sprite 32 as a "player":
-	ppu.tile_table[32].bit0 = {
-		0b01111110,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b01111110,
-	};
-	ppu.tile_table[32].bit1 = {
-		0b00000000,
-		0b00000000,
-		0b00011000,
-		0b00100100,
-		0b00000000,
-		0b00100100,
-		0b00000000,
-		0b00000000,
-	};
-	//down
-	ppu.tile_table[33].bit0 = {
-		0b01111110,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b11111111,
-		0b01111110,
-	};
-	ppu.tile_table[33].bit1 = {
-		0b10000001,
-		0b00000000,
-		0b00100100,
-		0b00000000,
-		0b00100100,
-		0b00011000,
-		0b00000000,
-		0b10000001,
-	};
+PlayMode::PlayMode() {
 
-	//makes the outside of tiles 0-16 solid:
+	glm::uvec2 player_sprite_png_size, box_sprite_png_size, goal_sprite_png_size, map_sprite_png_size;
+	std::vector< glm::u8vec4 > player_sprite_png_data, box_sprite_png_data, goal_sprite_png_data, map_sprite_png_data;
+
+	load_png("test_sprite3.png", &player_sprite_png_size, &player_sprite_png_data, LowerLeftOrigin);
+	load_png("test_sprite2.png", &box_sprite_png_size, &box_sprite_png_data, LowerLeftOrigin);
+	load_png("test_sprite.png", &goal_sprite_png_size, &goal_sprite_png_data, LowerLeftOrigin);
+	load_png("map.png", &map_sprite_png_size, &map_sprite_png_data, LowerLeftOrigin);
+
+
+
+	ppu.tile_table[36] = gen_tile_from_png(player_sprite_png_size, player_sprite_png_data);
+	ppu.tile_table[35] = gen_tile_from_png(box_sprite_png_size, box_sprite_png_data);
+	ppu.tile_table[34] = gen_tile_from_png(goal_sprite_png_size, goal_sprite_png_data);
+	ppu.tile_table[0] = gen_tile_from_png(map_sprite_png_size, map_sprite_png_data);
+
+	
+	//map pallet
 	ppu.palette_table[0] = {
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x44, 0x00, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x44, 0x00, 0x00, 0xff),
+		glm::u8vec4(0xf0, 0xa0, 0xa0, 0xff),
+		glm::u8vec4(0xa0, 0xf0, 0xa0, 0xff),
+		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+		glm::u8vec4(0xa0, 0xa0, 0xf0, 0xff),
 	};
 
-	//makes the center of tiles 0-16 solid:
-	ppu.palette_table[1] = {
+	//box pallet
+	ppu.palette_table[4] = {
+		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+		glm::u8vec4(0x00, 0xa0, 0xa0, 0xff),
+		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+		glm::u8vec4(0x00, 0xff, 0x00, 0x00),
+	};
+
+	//goal pallet
+	ppu.palette_table[3] = {
 		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-		glm::u8vec4(0x00, 0xff, 0x00, 0xff),
-		glm::u8vec4(0x00, 0xff, 0x00, 0xff),
+		glm::u8vec4(0x0f, 0x0f, 0x00, 0xff),
+		glm::u8vec4(0xa0, 0xa0, 0x00, 0xff),
+		glm::u8vec4(0xa0, 0x00, 0x00, 0xff),
 	};
 
 	//used for the player:
 	ppu.palette_table[7] = {
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
+		glm::u8vec4(0x00, 0xff, 0x00, 0x00),
 		glm::u8vec4(0xff, 0xff, 0x00, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
+		glm::u8vec4(0x00, 0x00, 0xff, 0xff),
 		glm::u8vec4(0x00, 0x00, 0x00, 0xff),
 	};
-
-	////used for the misc other sprites:
-	//ppu.palette_table[6] = {
-	//	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	//	glm::u8vec4(0x88, 0x88, 0xff, 0xff),
-	//	glm::u8vec4(0x00, 0x00, 0x00, 0xff),
-	//	glm::u8vec4(0x00, 0x00, 0x00, 0x00),
-	//};
 
 	//used for alternate player color:
 	ppu.palette_table[6] = {
 		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
 		glm::u8vec4(0x88, 0x88, 0xff, 0xff),
 		glm::u8vec4(0xff, 0xff, 0xff, 0xff),
-		glm::u8vec4(0x00, 0x00, 0x00, 0x00),
+		glm::u8vec4(0x00, 0xff, 0x00, 0xff),
 	};
 
 }
@@ -193,7 +169,7 @@ void PlayMode::update(float elapsed) {
 	background_fade += elapsed / 10.0f;
 	background_fade -= std::floor(background_fade);
 
-	constexpr float PlayerSpeed = 30.0f;
+	float PlayerSpeed = holding_box ? 35.0f : 50.0f;
 	if (left.pressed) {
 		player_at.x -= PlayerSpeed * elapsed;
 	}
@@ -202,24 +178,26 @@ void PlayMode::update(float elapsed) {
 	}
 	else if (down.pressed) {
 		player_at.y -= PlayerSpeed * elapsed;
-		player_sprite_index = 33;
+		player_sprite_index = 36;
 	}
 	else if (up.pressed) {
 		player_at.y += PlayerSpeed * elapsed;
-		player_sprite_index = 32;
+		player_sprite_index = 36;
 	}
 	if (space.pressed) {
-		if (near_box()) {
+		if (near_box(player_at)) {
 			grab_box();
 		}
 		else {
-			
+			//shoot();
 		}
 		
 	}
 	else {
-		holding_box = false;
-		player_color_index = 7;
+		release_box();
+		if (near_box(goal_at)) {
+			reset_goal();
+		}
 	}
 
 	//reset button press counters:
@@ -233,28 +211,42 @@ void PlayMode::update(float elapsed) {
 void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	//--- set ppu state based on game state ---
 
-	//background color will be some hsv-like fade:
+	//background color
 	ppu.background_color = glm::u8vec4(0xff, 0xff, 0xff, 0xff);
 		
-		/*glm::u8vec4(
-		std::min(255,std::max(0,int32_t(255 * 0.5f * (0.5f + std::sin( 2.0f * M_PI * (background_fade + 0.0f / 3.0f) ) ) ))),
-		std::min(255,std::max(0,int32_t(255 * 0.5f * (0.5f + std::sin( 2.0f * M_PI * (background_fade + 1.0f / 3.0f) ) ) ))),
-		std::min(255,std::max(0,int32_t(255 * 0.5f * (0.5f + std::sin( 2.0f * M_PI * (background_fade + 2.0f / 3.0f) ) ) ))),
-		0xff
-	);*/
-
-	//tilemap gets recomputed every frame as some weird plasma thing:
-	//NOTE: don't do this in your game! actually make a map or something :-)
-	//for (uint32_t y = 0; y < PPU466::BackgroundHeight; ++y) {
-	//	for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
-	//		//TODO: make weird plasma thing
-	//		ppu.background[x+PPU466::BackgroundWidth*y] = ((x+y)%16);
-	//	}
-	//}
+	for (uint32_t y = 0; y < PPU466::BackgroundHeight; ++y) {
+		for (uint32_t x = 0; x < PPU466::BackgroundWidth; ++x) {
+			ppu.background[x + PPU466::BackgroundWidth * y] = 0;// ((x + y) % 16);
+		}
+	}
 
 	//background scroll:
 	ppu.background_position.x = int32_t(-0.5f * player_at.x);
 	ppu.background_position.y = int32_t(-0.5f * player_at.y);
+
+	
+
+	//Box Sprite
+	ppu.sprites[1].x = int32_t(box_at.x);
+	ppu.sprites[1].y = int32_t(box_at.y);
+	ppu.sprites[1].index = box_sprite_index;
+	ppu.sprites[1].attributes = box_color_index;
+
+	//Goal Sprite
+	ppu.sprites[2].x = int32_t(goal_at.x);
+	ppu.sprites[2].y = int32_t(goal_at.y);
+	ppu.sprites[2].index = goal_sprite_index;
+	ppu.sprites[2].attributes = goal_color_index;
+
+	//some other misc sprites:
+	for (uint32_t i = 3; i < 63; ++i) {
+		float amt = (i + 2.0f * background_fade) / 62.0f;
+		ppu.sprites[i].x = 250; 
+		ppu.sprites[i].y = 250; 
+		ppu.sprites[i].index = 32;
+		ppu.sprites[i].attributes = 6;
+		
+	}
 
 	//player sprite:
 	ppu.sprites[0].x = int32_t(player_at.x);
@@ -262,24 +254,14 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	ppu.sprites[0].index = player_sprite_index;
 	ppu.sprites[0].attributes = player_color_index;
 
-	//some other misc sprites:
-	for (uint32_t i = 1; i < 63; ++i) {
-		float amt = (i + 2.0f * background_fade) / 62.0f;
-		ppu.sprites[i].x = 250; //int32_t(0.5f * PPU466::ScreenWidth + std::cos( 2.0f * M_PI * amt * 5.0f + 0.01f * player_at.x) * 0.4f * PPU466::ScreenWidth);
-		ppu.sprites[i].y = 250; //int32_t(0.5f * PPU466::ScreenHeight + std::sin( 2.0f * M_PI * amt * 3.0f + 0.01f * player_at.y) * 0.4f * PPU466::ScreenWidth);
-		ppu.sprites[i].index = 32;
-		ppu.sprites[i].attributes = 6;
-		// if (i % 2) ppu.sprites[i].attributes |= 0x80; //'behind' bit
-	}
-
 	//--- actually draw ---
 	ppu.draw(drawable_size);
 }
 
 // Is the player near the box?
-bool PlayMode::near_box()
+bool PlayMode::near_box(glm::vec2 target)
 {
-	return glm::distance(player_at, box_at) < GRAB_DISTANCE;
+	return glm::distance(target, box_at) < GRAB_DISTANCE;
 }
 
 // Pick up the box
@@ -296,4 +278,17 @@ void PlayMode::release_box()
 	player_color_index = 7;
 	holding_box = false;
 }
+
+void PlayMode::reset_goal()
+{
+	static std::mt19937 mt;
+
+	goal_at.x = (mt() / (float)(mt.max())) * 235.0f;
+	goal_at.y = (mt() / (float)(mt.max())) * 235.0f;
+
+	box_at.x = (mt() / (float)(mt.max())) * 235.0f;
+	box_at.y = (mt() / (float)(mt.max())) * 235.0f;
+}
+
+
 

@@ -45,7 +45,7 @@ PPU466::Tile gen_tile_from_png(glm::uvec2 size, std::vector< glm::u8vec4 > data)
 				color_select1 = 1;
 			}
 			gen_tile.bit0[j] = gen_tile.bit0[j] | color_select0 << i;
-			gen_tile.bit0[j] = gen_tile.bit0[j] | color_select1 << i;
+			gen_tile.bit1[j] = gen_tile.bit1[j] | color_select1 << i;
 		}
 	}
 	return gen_tile;
